@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mirror Garden 🌱</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/human/3.3.6/human.js"></script>
+<style>
+  :root{
+    --soil:#4a3728;
+    --moss:#4c7a50;
+    --moss-dark:#356138;
+    --cream:#f6f1de;
+    --marigold:#e8a33d;
+    --sky:#a9d6e5;
+    --blossom:#e8879e;
+    --ink:#2c241c;
+    --panel:#fffaf0;
+    --shadow: 0 8px 24px rgba(44,36,28,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: linear-gradient(180deg, #fde8b0 0%, var(--sky) 35%, #cfe9c9 65%, var(--cream) 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    min-height:100vh;
+    padding: 18px 14px 60px;
+  }
+  h1,h2,h3{
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    margin: 0;
+  }
+  .wrap{ max-width: 980px; margin: 0 auto; }
+  header{ text-align:center; margin-bottom: 18px; }
+  header h1{ font-size: 2.1rem; color: var(--moss-dark); letter-spacing:0.5px; }
+  header p{ margin: 4px 0 0; font-style: italic; color: #5c6b4f; }
+
+  .stage{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 760px){ .stage{ grid-template-columns: 1fr; } }
+
+  .pane{
+    position:relative;
+    background: var(--panel);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+    overflow:hidden;
+    aspect-ratio: 4/3;
+  }
+  .pane-label{
+    position:absolute; top:10px; left:10px;
+    background: rgba(44,36,28,0.65); color:#fff;
+    font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 999px; z-index:5;
+  }
+  #avatarCanvas, #videoCanvas{
+    width:100%; height:100%; display:block; object-fit:cover;
+  }
+  video{ display:none; }
+
+  .prompt{
+    position:absolute; bottom:0; left:0; right:0;
+    background: linear-gradient(0deg, rgba(44,36,28,0.82), rgba(44,36,28,0));
+    color:#fff; padding: 22px 14px 10px;
+    font-size: 1rem; text-align:center;
+    min-height: 54px;
+  }
+  .prompt b{ color: var(--marigold); }
+
+  .hud{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  @media (max-width:700px){ .hud{ grid-template-columns: repeat(2,1fr);} }
+  .card{
+    background: var(--panel); border-radius: 14px; padding: 10px 6px;
+    text-align:center; box-shadow: var(--shadow);
+  }
+  .card .val{ font-size:1.4rem; font-weight:700; color: var(--moss-dark); }
+  .card .lbl{ font-size:0.7rem; text-transform:uppercase; letter-spacing:0.06em; color:#7a7263;}
+
+  .controls{
+    display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-bottom:16px;
+  }
+  button{
+    font: inherit; cursor:pointer;
+    border:none; border-radius: 999px;
+    padding: 10px 18px; font-weight:600;
+    background: var(--moss); color:#fff;
+    box-shadow: var(--shadow);
+    transition: transform 0.12s ease;
+  }
+  button:hover{ transform: translateY(-2px); }
+  button.secondary{ background: #fff; color: var(--moss-dark); border: 2px solid var(--moss); }
+  button.active{ background: var(--marigold); }
+  button:disabled{ opacity:0.5; cursor:not-allowed; transform:none; }
+
+  .garden-section{
+    background: var(--panel); border-radius: 20px; box-shadow: var(--shadow);
+    padding: 16px; text-align:center;
+  }
+  .garden-section h2{ color: var(--moss-dark); font-size:1.3rem; }
+  .garden-section .story{ font-size:0.85rem; color:#5c6b4f; margin: 4px 0 12px; min-height: 1.2em;}
+  #gardenCanvas{ width:100%; max-width:900px; height:220px; border-radius: 14px; }
+  .energy-bar{
+    height: 10px; border-radius: 999px; background:#e5ded0; overflow:hidden; margin-top:10px;
+  }
+  .energy-fill{ height:100%; background: linear-gradient(90deg, var(--moss), var(--marigold)); width:0%; transition: width 0.6s ease; }
+  .energy-lbl{ font-size:0.72rem; color:#7a7263; margin-top:4px; }
+
+  .status{
+    text-align:center; font-size:0.85rem; color:#8a3b3b; min-height:1.2em; margin-bottom:6px;
+  }
+  .difficulty{ display:flex; gap:6px; justify-content:center; margin-bottom:10px; }
+  .difficulty button{ padding:6px 14px; font-size:0.8rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Mirror Garden 🌱</h1>
+    <p>"Help restore a magical garden by mirroring the gardener's movements."</p>
+  </header>
+
+  <div class="status" id="status"></div>
+
+  <div class="stage">
+    <div class="pane">
+      <div class="pane-label">Gardener</div>
+      <canvas id="avatarCanvas" width="480" height="360"></canvas>
+    </div>
+    <div class="pane">
+      <div class="pane-label">You</div>
+      <div class="pane-label" style="left:auto; right:10px; top:auto; bottom:56px; background:rgba(44,36,28,0.6); font-size:0.68rem;">🟢 match ≥70% · 🔵 below 70%</div>
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="videoCanvas" width="480" height="360"></canvas>
+      <div class="prompt" id="prompt">Press <b>Start Camera</b> to begin</div>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div class="card"><div class="val" id="valAccuracy">–</div><div class="lbl">Pose Accuracy</div></div>
+    <div class="card"><div class="val" id="valBalance">–</div><div class="lbl">Balance</div></div>
+    <div class="card"><div class="val" id="valSmooth">–</div><div class="lbl">Smoothness</div></div>
+    <div class="card"><div class="val" id="valCount">0</div><div class="lbl" id="valCountLbl">Reps</div></div>
+  </div>
+
+  <div class="difficulty" id="difficultyRow" style="display:none;">
+    <span style="align-self:center;font-size:0.8rem;color:#7a7263;">Balance hold:</span>
+    <button class="secondary" data-hold="5">Beginner 5s</button>
+    <button class="secondary active" data-hold="10">Intermediate 10s</button>
+    <button class="secondary" data-hold="20">Advanced 20s</button>
+  </div>
+
+  <div class="controls">
+    <button id="btnCamera">Start Camera</button>
+    <button class="secondary" data-game="seeds">🌱 Plant Seeds</button>
+    <button class="secondary" data-game="water">💧 Water the Plants</button>
+    <button class="secondary" data-game="balance">🦩 Scarecrow Balance</button>
+    <button class="secondary" data-game="dance">🌸 Flower Dance</button>
+  </div>
+
+  <div class="garden-section">
+    <h2>Your Garden Farm</h2>
+    <div class="story" id="gardenStory">A sleepy little plot and an empty hut — let's wake the farm up!</div>
+    <canvas id="gardenCanvas" width="900" height="220"></canvas>
+    <div class="energy-bar"><div class="energy-fill" id="energyFill"></div></div>
+    <div class="energy-lbl" id="energyLbl">Garden Energy: 0</div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------------------------------------------------------------
+     0. STATE
+  --------------------------------------------------------------------- */
+  const state = {
+    human: null,
+    running: false,
+    video: document.getElementById('video'),
+    videoCanvas: document.getElementById('videoCanvas'),
+    avatarCanvas: document.getElementById('avatarCanvas'),
+    gardenCanvas: document.getElementById('gardenCanvas'),
+    currentGame: null,
+    holdTarget: 10,
+    energy: 0,
+    sessionsCompleted: 0,
+    lastFrameTime: performance.now(),
+    metrics: { accuracy: 0, balance: 0, smooth: 0, count: 0 },
+    angleHistory: [],
+    hipXHistory: [],
+  };
+
+  const vctx = state.videoCanvas.getContext('2d');
+  const actx = state.avatarCanvas.getContext('2d');
+  const gctx = state.gardenCanvas.getContext('2d');
+
+  const statusEl = document.getElementById('status');
+  const promptEl = document.getElementById('prompt');
+
+  function setStatus(msg){ statusEl.textContent = msg || ''; }
+  function setPrompt(html){ promptEl.innerHTML = html; }
+
+  /* ---------------------------------------------------------------------
+     1. PERSISTENT GARDEN STORAGE (window.storage, falls back to memory)
+  --------------------------------------------------------------------- */
+  async function loadGarden(){
+    try{
+      const res = await window.storage.get('mirror-garden:energy');
+      if(res && res.value){
+        const data = JSON.parse(res.value);
+        state.energy = data.energy || 0;
+        state.sessionsCompleted = data.sessionsCompleted || 0;
+      }
+    }catch(e){ /* no saved data yet, or storage unavailable */ }
+    renderGarden();
+  }
+  async function saveGarden(){
+    try{
+      await window.storage.set('mirror-garden:energy', JSON.stringify({
+        energy: state.energy, sessionsCompleted: state.sessionsCompleted
+      }));
+    }catch(e){ /* ignore - session-only progress */ }
+  }
+
+  function addEnergy(amount){
+    state.energy = Math.max(0, state.energy + amount);
+    renderGarden();
+    saveGarden();
+  }
+
+  /* ---------------------------------------------------------------------
+     2. GARDEN RENDERING (progression scene)
+  --------------------------------------------------------------------- */
+  const LEVEL_STEP = 40; // energy per level
+  function gardenLevel(){ return Math.min(30, Math.floor(state.energy / LEVEL_STEP)); }
+
+  function seededRandom(seed){
+    let s = seed % 2147483647; if (s<=0) s += 2147483646;
+    return function(){ s = (s*16807)%2147483647; return (s-1)/2147483646; };
+  }
+  function clampN(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+  let gardenAnimT = 0;
+  function renderGarden(){
+    const level = gardenLevel();
+    document.getElementById('energyLbl').textContent =
+      `Garden Energy: ${Math.round(state.energy)}  ·  Level ${level}/30`;
+    const pct = Math.min(100, (state.energy % LEVEL_STEP)/LEVEL_STEP*100 + (level>=30?100:0));
+    document.getElementById('energyFill').style.width = pct+'%';
+
+    document.getElementById('gardenStory').textContent = gardenStoryText(level);
+  }
+
+  function gardenStoryText(level){
+    if(level===0) return "A sleepy little plot and an empty hut — let's wake the farm up!";
+    if(level<4) return "The grass is coming in green and the sun's out. Off to a great start!";
+    if(level<10) return "Flowers are blooming all around the hut.";
+    if(level<15) return "Young trees are taking root across the farm.";
+    if(level<20) return "The trees are filling in nicely — the farm feels full of life.";
+    if(level<25) return "A sparkling pond has filled at the farm's heart, reflecting the sky.";
+    if(level<30) return "Tall trees now shade the hut and the pond below.";
+    return "The farm is completely thriving — a joyful, living record of your rehabilitation journey.";
+  }
+
+  function drawGardenFrame(){
+    const level = gardenLevel();
+    const w = state.gardenCanvas.width, h = state.gardenCanvas.height;
+    gctx.clearRect(0,0,w,h);
+
+    // sky — always warm and cheerful, gets a touch brighter/bluer as the garden grows
+    const skyTone = Math.min(1, level/20);
+    const skyGrad = gctx.createLinearGradient(0,0,0,h*0.6);
+    skyGrad.addColorStop(0, mixColor('#fde8b0','#8ecbe8', skyTone*0.7));
+    skyGrad.addColorStop(1, mixColor('#fff3d6','#d9f0d0', skyTone*0.7));
+    gctx.fillStyle = skyGrad;
+    gctx.fillRect(0,0,w,h*0.62);
+
+    // sun with a friendly smile
+    const sunX = w*0.87, sunY = h*0.16, sunR = 22;
+    gctx.save();
+    const raySpin = gardenAnimT/4000;
+    gctx.translate(sunX,sunY); gctx.rotate(raySpin);
+    gctx.strokeStyle = 'rgba(255,196,74,0.8)'; gctx.lineWidth = 4; gctx.lineCap='round';
+    for(let i=0;i<8;i++){
+      const a = i*Math.PI/4;
+      gctx.beginPath();
+      gctx.moveTo(Math.cos(a)*(sunR+4), Math.sin(a)*(sunR+4));
+      gctx.lineTo(Math.cos(a)*(sunR+14), Math.sin(a)*(sunR+14));
+      gctx.stroke();
+    }
+    gctx.restore();
+    gctx.fillStyle = '#ffc44a';
+    gctx.beginPath(); gctx.arc(sunX,sunY,sunR,0,Math.PI*2); gctx.fill();
+    gctx.strokeStyle = '#c96b3a'; gctx.lineWidth = 2;
+    gctx.beginPath(); gctx.arc(sunX-6,sunY-3,2.2,0,Math.PI*2); gctx.fill();
+    gctx.beginPath(); gctx.arc(sunX+6,sunY-3,2.2,0,Math.PI*2); gctx.fill();
+    gctx.beginPath(); gctx.arc(sunX,sunY+4,8,0.15*Math.PI,0.85*Math.PI); gctx.stroke();
+
+    // drifting clouds
+    gctx.font = '26px serif'; gctx.textAlign='center';
+    for(let i=0;i<3;i++){
+      const cx2 = ((w*0.2 + i*180 + gardenAnimT/60) % (w+80)) - 40;
+      const cy2 = h*0.14 + (i%2)*20;
+      gctx.globalAlpha = 0.85;
+      gctx.fillText('☁️', cx2, cy2);
+    }
+    gctx.globalAlpha = 1;
+
+    // pond, tucked into the hillside background (level >= 20)
+    if(level>=20){
+      gctx.fillStyle = 'rgba(120,190,220,0.55)';
+      gctx.beginPath();
+      gctx.ellipse(w*0.9, h*0.34, w*0.07, h*0.05, 0, 0, Math.PI*2);
+      gctx.fill();
+      const shimmer = 3*Math.sin(gardenAnimT/300);
+      gctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      gctx.beginPath();
+      gctx.ellipse(w*0.9+shimmer, h*0.34, w*0.045, h*0.028, 0, 0, Math.PI*2);
+      gctx.stroke();
+    }
+
+    // rolling hills backdrop
+    const hillTop = h*0.24, hillBase = h*0.5;
+    gctx.fillStyle = '#a8d888';
+    gctx.beginPath();
+    gctx.moveTo(0, hillBase);
+    gctx.quadraticCurveTo(w*0.22, hillTop+6, w*0.48, hillTop+18);
+    gctx.quadraticCurveTo(w*0.74, hillTop+4, w, hillTop+22);
+    gctx.lineTo(w, hillBase); gctx.closePath(); gctx.fill();
+    gctx.fillStyle = '#8fc36b';
+    gctx.beginPath();
+    gctx.moveTo(0, hillBase+8);
+    gctx.quadraticCurveTo(w*0.3, hillTop+26, w*0.6, hillTop+30);
+    gctx.quadraticCurveTo(w*0.82, hillTop+20, w, hillTop+34);
+    gctx.lineTo(w, hillBase+8); gctx.closePath(); gctx.fill();
+
+    // a few trees dotted along the hillside — always present, not tied to level
+    function drawHillTree(tx,ty,scale){
+      gctx.fillStyle = '#5c8a3f';
+      gctx.beginPath(); gctx.arc(tx, ty-14*scale, 13*scale, 0, Math.PI*2); gctx.fill();
+      gctx.beginPath(); gctx.arc(tx-9*scale, ty-6*scale, 10*scale, 0, Math.PI*2); gctx.fill();
+      gctx.beginPath(); gctx.arc(tx+9*scale, ty-6*scale, 10*scale, 0, Math.PI*2); gctx.fill();
+      gctx.fillStyle = '#6b4a2a';
+      gctx.fillRect(tx-3*scale, ty-4*scale, 6*scale, 14*scale);
+    }
+    drawHillTree(w*0.09, hillBase-6, 0.9);
+    drawHillTree(w*0.30, hillBase-14, 0.7);
+    drawHillTree(w*0.66, hillBase-10, 0.8);
+    drawHillTree(w*0.96, hillBase-2, 1.0);
+
+    // white picket fence along the near edge of the hill (left side, echoing a farmyard boundary)
+    gctx.strokeStyle = '#f2ead6'; gctx.lineWidth = 3;
+    for(let fx=w*0.005; fx<w*0.20; fx+=12){
+      const fy = hillBase - (fx-w*0.005)*0.15;
+      gctx.beginPath(); gctx.moveTo(fx, fy+10); gctx.lineTo(fx, fy-6); gctx.stroke();
+    }
+    gctx.beginPath();
+    gctx.moveTo(w*0.005, hillBase+4); gctx.lineTo(w*0.20, hillBase-2.2); gctx.stroke();
+
+    // thatched hut, left of centre on the hill
+    const hutScale = 0.85;
+    (function drawHut(){
+      const bx = w*0.10, by = hillBase-28, bw = 58*hutScale, bh = 40*hutScale;
+      gctx.fillStyle = '#dcbf8a';
+      gctx.fillRect(bx, by+18, bw, bh-18);
+      gctx.beginPath();
+      gctx.moveTo(bx-9, by+18); gctx.lineTo(bx+bw/2, by-10); gctx.lineTo(bx+bw+9, by+18);
+      gctx.closePath(); gctx.fillStyle='#a5702f'; gctx.fill();
+      gctx.strokeStyle = '#7a5230'; gctx.lineWidth=1.3;
+      for(let s=-7; s<=7; s+=3.5){
+        gctx.beginPath(); gctx.moveTo(bx+bw/2+s, by-6); gctx.lineTo(bx+bw/2+s*2.1, by+17); gctx.stroke();
+      }
+      gctx.fillStyle = '#5c3a20';
+      gctx.fillRect(bx+bw/2-7, by+bh-18, 14, 18);
+    })();
+
+    // larger farmhouse, right of centre on the hill
+    (function drawFarmhouse(){
+      const fs = 1.15;
+      const bx = w*0.60, by = hillBase-40, bw = 96*fs, bh = 52*fs;
+      // walls
+      gctx.fillStyle = '#c9a05e';
+      gctx.fillRect(bx, by+26, bw, bh-26);
+      gctx.fillStyle = '#8a6a3f';
+      gctx.fillRect(bx, by+26, bw*0.42, bh-26); // shaded wood panel on the left half
+      // roof
+      gctx.beginPath();
+      gctx.moveTo(bx-14, by+26); gctx.lineTo(bx+bw/2, by-20); gctx.lineTo(bx+bw+14, by+26);
+      gctx.closePath(); gctx.fillStyle='#d8b874'; gctx.fill();
+      gctx.strokeStyle = '#a5702f'; gctx.lineWidth=1.4;
+      for(let s=-bw/2+6; s<=bw/2-6; s+=6){
+        gctx.beginPath(); gctx.moveTo(bx+bw/2+s*0.55, by-4); gctx.lineTo(bx+bw/2+s, by+25); gctx.stroke();
+      }
+      // door + window
+      gctx.fillStyle = '#5c3a20';
+      gctx.fillRect(bx+bw*0.68, by+bh-24, 18, 24);
+      gctx.fillStyle = '#eaf3d8';
+      gctx.fillRect(bx+bw*0.16, by+34, 16, 16);
+      gctx.strokeStyle = '#5c3a20'; gctx.lineWidth=1.5;
+      gctx.strokeRect(bx+bw*0.16, by+34, 16, 16);
+    })();
+
+    // wooden fence along the top edge of the field, in front of the hill
+    const fenceY = h*0.47;
+    gctx.strokeStyle = '#a5784a'; gctx.lineWidth = 3.5;
+    for(let fx=w*0.01; fx<w*0.99; fx+=30){
+      gctx.beginPath(); gctx.moveTo(fx, fenceY+10); gctx.lineTo(fx, fenceY-8); gctx.stroke();
+    }
+    gctx.beginPath(); gctx.moveTo(w*0.01, fenceY-2); gctx.lineTo(w*0.99, fenceY-2); gctx.stroke();
+    gctx.beginPath(); gctx.moveTo(w*0.01, fenceY+7); gctx.lineTo(w*0.99, fenceY+7); gctx.stroke();
+
+    /* --- diagonal plowed field: rows fill in with crops as the level rises --- */
+    const rows = 6;
+    const doneRows = clampN(Math.floor(level/5), 0, rows);
+    const partial = clampN((level%5)/5, 0, 1);
+    const fy0 = fenceY + 4;
+    const fh = h - fy0;
+    const rowH = fh/rows;
+    const rnd = seededRandom(7);
+
+    gctx.save();
+    gctx.beginPath(); gctx.rect(0, fy0, w, h-fy0); gctx.clip();
+    gctx.translate(0, fy0);
+    gctx.transform(1, 0, 0.55, 1, -w*0.28, 0); // shear for diagonal furrows
+
+    for(let r=0;r<rows;r++){
+      const ry = r*rowH;
+      const grown = r < doneRows;
+      const growingHere = r === doneRows;
+      // soil base
+      gctx.fillStyle = r%2===0 ? '#8a6a3f' : '#7d5f38';
+      gctx.fillRect(-w*0.4, ry, w*1.8, rowH);
+
+      if(grown || growingHere){
+        const fillFrac = grown ? 1 : partial;
+        gctx.fillStyle = mixColor('#8a6a3f', '#6faa4e', fillFrac);
+        gctx.fillRect(-w*0.4, ry, w*1.8, rowH*fillFrac + (grown?0:0));
+        if(grown){
+          // scalloped crop ridges, like rows of leafy greens
+          gctx.fillStyle = '#7ec25a';
+          for(let cx0=-w*0.4; cx0<w*1.4; cx0+=18){
+            const bob = Math.sin(gardenAnimT/700 + cx0*0.05)*1.5;
+            gctx.beginPath();
+            gctx.arc(cx0, ry+rowH*0.55+bob, rowH*0.42, 0, Math.PI*2);
+            gctx.fill();
+          }
+          gctx.fillStyle = '#5f9e42';
+          for(let cx0=-w*0.4+9; cx0<w*1.4; cx0+=18){
+            gctx.beginPath();
+            gctx.arc(cx0, ry+rowH*0.5, rowH*0.22, 0, Math.PI*2);
+            gctx.fill();
+          }
+        } else {
+          // small sprouts pushing up through the soil
+          for(let cx0=-w*0.4; cx0<w*1.4; cx0+=26){
+            if(rnd() > partial+0.15) continue;
+            gctx.strokeStyle = '#5f9e42'; gctx.lineWidth=2;
+            gctx.beginPath(); gctx.moveTo(cx0, ry+rowH*0.85); gctx.lineTo(cx0, ry+rowH*0.55); gctx.stroke();
+            gctx.fillStyle = '#7ec25a';
+            gctx.beginPath(); gctx.ellipse(cx0-3, ry+rowH*0.55, 4,2.4, -0.5,0,Math.PI*2); gctx.fill();
+            gctx.beginPath(); gctx.ellipse(cx0+3, ry+rowH*0.55, 4,2.4, 0.5,0,Math.PI*2); gctx.fill();
+          }
+        }
+      } else {
+        // plain furrow texture on untouched dirt
+        gctx.strokeStyle = 'rgba(0,0,0,0.12)'; gctx.lineWidth=1.5;
+        for(let cx0=-w*0.4; cx0<w*1.4; cx0+=16){
+          gctx.beginPath(); gctx.moveTo(cx0, ry+4); gctx.lineTo(cx0+6, ry+rowH-4); gctx.stroke();
+        }
+      }
+    }
+    gctx.restore();
+
+    // little signpost marking progress, at the edge between soil and crops
+    (function drawSignpost(){
+      const sx = w*0.5, sy = fenceY + doneRows*rowH*0.62 + 30;
+      gctx.strokeStyle = '#7a5230'; gctx.lineWidth=4;
+      gctx.beginPath(); gctx.moveTo(sx, sy+18); gctx.lineTo(sx, sy-6); gctx.stroke();
+      gctx.fillStyle = '#c9a05e';
+      roundRect(gctx, sx-16, sy-20, 32, 16, 3); gctx.fill();
+      gctx.strokeStyle='#7a5230'; gctx.lineWidth=1.5; gctx.strokeRect(sx-16, sy-20, 32, 16);
+      gctx.font = '11px serif'; gctx.textAlign='center'; gctx.fillStyle='#3f6b2e';
+      gctx.fillText('🌿', sx, sy-8);
+    })();
+
+    gardenAnimT += 16;
+  }
+  function mixColor(c1,c2,t){
+    const p1=hexToRgb(c1), p2=hexToRgb(c2);
+    const r=Math.round(p1.r+(p2.r-p1.r)*t), g=Math.round(p1.g+(p2.g-p1.g)*t), b=Math.round(p1.b+(p2.b-p1.b)*t);
+    return `rgb(${r},${g},${b})`;
+  }
+  function hexToRgb(hex){
+    const n = parseInt(hex.slice(1),16);
+    return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+  }
+  (function gardenLoop(){ drawGardenFrame(); requestAnimationFrame(gardenLoop); })();
+
+  /* ---------------------------------------------------------------------
+     3. GARDENER AVATAR (procedural, faceless, animated demonstration)
+  --------------------------------------------------------------------- */
+  // squatAmount: 0 (standing) -> 1 (full squat)
+  // stepOffset: -1 (left) .. 1 (right)
+  // legLift: 0..1 which leg raised (sign = left/right), armRaise for watering
+  const avatarPose = { squat:0, step:0, legLift:0, legSide:1, glow:0 };
+
+  function drawGardener(){
+    const w = state.avatarCanvas.width, h = state.avatarCanvas.height;
+    actx.clearRect(0,0,w,h);
+    // ground
+    actx.fillStyle = '#cfe9c9';
+    actx.fillRect(0,0,w,h);
+    actx.fillStyle = '#6b5237';
+    actx.fillRect(0,h*0.82,w,h*0.18);
+
+    const cx = w/2 + avatarPose.step*40;
+    const groundY = h*0.82;
+    const squat = avatarPose.squat; // 0..1
+    const bodyH = 150 - squat*45;
+    const hipY = groundY - (110 - squat*45);
+    const shoulderY = hipY - bodyH*0.55;
+    const headY = shoulderY - 34;
+
+    const legSpread = 22;
+    const legLiftL = avatarPose.legSide>0 ? avatarPose.legLift : 0;
+    const legLiftR = avatarPose.legSide<0 ? avatarPose.legLift : 0;
+
+    // legs — three segments each (hip->knee->ankle->toe) so knee and ankle joints are both visible
+    const hipL = { x: cx-legSpread, y: hipY };
+    const hipR = { x: cx+legSpread, y: hipY };
+    const ankleL = { x: cx-legSpread-6, y: groundY - legLiftL*40 };
+    const ankleR = { x: cx+legSpread+6, y: groundY - legLiftR*40 };
+    const kneeBend = 6 + squat*22;
+    const kneeL = { x: (hipL.x+ankleL.x)/2 - kneeBend, y: (hipL.y+ankleL.y)/2 + (legLiftL>0.1? -legLiftL*20:0) };
+    const kneeR = { x: (hipR.x+ankleR.x)/2 + kneeBend, y: (hipR.y+ankleR.y)/2 + (legLiftR>0.1? -legLiftR*20:0) };
+    const toeL = { x: ankleL.x - 16, y: ankleL.y + (legLiftL>0.1? -legLiftL*36+6 : 4) };
+    const toeR = { x: ankleR.x + 16, y: ankleR.y + (legLiftR>0.1? -legLiftR*36+6 : 4) };
+
+    drawLimb(hipL.x,hipL.y, kneeL.x,kneeL.y, '#7a5230');
+    drawLimb(kneeL.x,kneeL.y, ankleL.x,ankleL.y, '#7a5230');
+    drawLimb(ankleL.x,ankleL.y, toeL.x,toeL.y, '#7a5230', 6);
+    drawLimb(hipR.x,hipR.y, kneeR.x,kneeR.y, '#7a5230');
+    drawLimb(kneeR.x,kneeR.y, ankleR.x,ankleR.y, '#7a5230');
+    drawLimb(ankleR.x,ankleR.y, toeR.x,toeR.y, '#7a5230', 6);
+
+    // body (overalls)
+    actx.fillStyle = avatarPose.glow>0 ? `rgba(120,200,120,${0.4+0.4*avatarPose.glow})` : '#5b8c5a';
+    roundRect(actx, cx-30, shoulderY, 60, hipY-shoulderY, 16); actx.fill();
+
+    // arms — shoulder -> elbow -> wrist
+    const armSwing = Math.sin(performance.now()/260)*8;
+    const shoulderL = { x: cx-30, y: shoulderY+10 };
+    const shoulderR = { x: cx+30, y: shoulderY+10 };
+    const elbowL = { x: cx-40, y: shoulderY+34+armSwing*0.4 };
+    const elbowR = { x: cx+40, y: shoulderY+34-armSwing*0.4 };
+    const wristL = { x: cx-46, y: shoulderY+55+armSwing };
+    const wristR = { x: cx+46, y: shoulderY+55-armSwing };
+    drawLimb(shoulderL.x,shoulderL.y, elbowL.x,elbowL.y, '#e8a33d');
+    drawLimb(elbowL.x,elbowL.y, wristL.x,wristL.y, '#e8a33d');
+    drawLimb(shoulderR.x,shoulderR.y, elbowR.x,elbowR.y, '#e8a33d');
+    drawLimb(elbowR.x,elbowR.y, wristR.x,wristR.y, '#e8a33d');
+
+    // head
+    actx.fillStyle = '#f0c49a';
+    actx.beginPath(); actx.arc(cx, headY, 22, 0, Math.PI*2); actx.fill();
+    // hat
+    actx.fillStyle = '#c96b3a';
+    actx.beginPath(); actx.ellipse(cx, headY-14, 28, 8, 0, 0, Math.PI*2); actx.fill();
+    roundRect(actx, cx-14, headY-32, 28, 20, 6); actx.fill();
+
+    // joint markers — matches the skeleton overlay on the player's camera pane
+    const hipC = { x: cx, y: hipY };
+    const joints = [hipL, hipR, hipC, kneeL, kneeR, ankleL, ankleR, toeL, toeR,
+                     shoulderL, shoulderR, elbowL, elbowR, wristL, wristR, {x:cx,y:headY+22}];
+    const kneeJoints = [kneeL, kneeR];
+    const ankleJoints = [ankleL, ankleR];
+    const toeJoints = [toeL, toeR];
+    actx.lineWidth = 2;
+    joints.forEach(j=>{
+      const isKnee = kneeJoints.includes(j);
+      const isAnkle = ankleJoints.includes(j);
+      const isToe = toeJoints.includes(j);
+      const r = isKnee ? 8 : isAnkle ? 7 : isToe ? 4.5 : 5.5;
+      actx.beginPath();
+      actx.arc(j.x, j.y, r, 0, Math.PI*2);
+      actx.fillStyle = isKnee ? '#ff5f4d' : isAnkle ? '#4da6ff' : isToe ? '#4da6ff' : '#ffdd57';
+      actx.fill();
+      actx.strokeStyle = 'rgba(44,36,28,0.5)';
+      actx.stroke();
+    });
+
+    // live knee-angle readout, since this is a leg-rehab cue
+    const kneeAngleDeg = Math.round(170 - squat*70);
+    actx.fillStyle = '#2c241c';
+    actx.font = 'bold 12px sans-serif';
+    actx.textAlign = 'center';
+    actx.fillText(kneeAngleDeg+'°', kneeL.x, kneeL.y-14);
+    actx.fillText(kneeAngleDeg+'°', kneeR.x, kneeR.y-14);
+
+    if(avatarPose.glow>0){
+      actx.save(); actx.globalAlpha = avatarPose.glow*0.5;
+      actx.strokeStyle = '#7CFC00'; actx.lineWidth=6;
+      actx.beginPath(); actx.arc(cx, (headY+groundY)/2, 90, 0, Math.PI*2); actx.stroke();
+      actx.restore();
+      avatarPose.glow -= 0.02;
+    }
+  }
+  function drawLimb(x1,y1,x2,y2,color,width){
+    actx.strokeStyle = color; actx.lineWidth=width||12; actx.lineCap='round';
+    actx.beginPath(); actx.moveTo(x1,y1); actx.lineTo(x2,y2); actx.stroke();
+  }
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+  (function avatarLoop(){ drawGardener(); requestAnimationFrame(avatarLoop); })();
+
+  /* ---------------------------------------------------------------------
+     4. POSE DETECTION (Human.js / MoveNet)
+  --------------------------------------------------------------------- */
+  const humanConfig = {
+    modelBasePath: 'https://vladmandic.github.io/human/models/',
+    backend: 'webgl',
+    face: { enabled:false },
+    hand: { enabled:false },
+    object: { enabled:false },
+    gesture: { enabled:false },
+    segmentation: { enabled:false },
+    body: { enabled:true, modelPath:'blazepose.json' }, // upgraded from movenet-lightning.json — BlazePose returns real depth (z) per point
+  };
+
+  function angleAt(a,b,c){
+    const v1x=a.x-b.x, v1y=a.y-b.y, v1z=(a.z||0)-(b.z||0);
+    const v2x=c.x-b.x, v2y=c.y-b.y, v2z=(c.z||0)-(b.z||0);
+    const m1=Math.hypot(v1x,v1y,v1z), m2=Math.hypot(v2x,v2y,v2z);
+    if(m1<1e-3||m2<1e-3) return null;
+    const cos=(v1x*v2x+v1y*v2y+v1z*v2z)/(m1*m2);
+    return Math.acos(Math.min(1,Math.max(-1,cos)))*180/Math.PI;
+  }
+
+  function getKP(result){
+    if(!result || !result.body || !result.body[0]) return null;
+    const map = {};
+    result.body[0].keypoints.forEach(k=>{
+      if(k.score>0.25) map[k.part] = { x:k.position[0], y:k.position[1], z:k.position[2]||0, score:k.score };
+    });
+    return map;
+  }
+
+  // Frontal-plane knee valgus proxy: how far the knee sits medial/lateral of the
+  // straight hip->ankle line, in 3D. A knee collapsing inward during a squat
+  // pushes this value up even if the hip has also rotated toward the camera —
+  // which a 2D-only (x,y) measurement cannot reliably tell apart.
+  function kneeValgusOffset(hip, knee, ankle, legLength){
+    if(!hip || !knee || !ankle || !legLength) return null;
+    const hax=ankle.x-hip.x, hay=ankle.y-hip.y, haz=(ankle.z||0)-(hip.z||0);
+    const hkx=knee.x-hip.x, hky=knee.y-hip.y, hkz=(knee.z||0)-(hip.z||0);
+    const haLen = Math.hypot(hax,hay,haz) || 1e-3;
+    // scalar projection of hip->knee onto hip->ankle, then perpendicular distance
+    const t = (hkx*hax+hky*hay+hkz*haz)/(haLen*haLen);
+    const projx=hip.x+t*hax, projy=hip.y+t*hay, projz=(hip.z||0)+t*haz;
+    const dist = Math.hypot(knee.x-projx, knee.y-projy, (knee.z||0)-projz);
+    return dist/legLength; // normalised so it's comparable across people/distances
+  }
+
+  function computeSkeletonAngles(kp){
+    if(!kp) return null;
+    const out = {};
+    if(kp.leftHip && kp.leftKnee && kp.leftAnkle) out.kneeL = angleAt(kp.leftHip, kp.leftKnee, kp.leftAnkle);
+    if(kp.rightHip && kp.rightKnee && kp.rightAnkle) out.kneeR = angleAt(kp.rightHip, kp.rightKnee, kp.rightAnkle);
+    if(kp.leftShoulder && kp.leftHip && kp.leftKnee) out.hipL = angleAt(kp.leftShoulder, kp.leftHip, kp.leftKnee);
+    if(kp.rightShoulder && kp.rightHip && kp.rightKnee) out.hipR = angleAt(kp.rightShoulder, kp.rightHip, kp.rightKnee);
+    if(kp.leftHip && kp.rightHip) out.hipCenterX = (kp.leftHip.x+kp.rightHip.x)/2;
+    if(kp.leftShoulder && kp.rightShoulder) out.shoulderWidth = Math.hypot(kp.leftShoulder.x-kp.rightShoulder.x, kp.leftShoulder.y-kp.rightShoulder.y);
+    if(kp.leftAnkle) out.ankleLY = kp.leftAnkle.y;
+    if(kp.rightAnkle) out.ankleRY = kp.rightAnkle.y;
+    if(kp.leftHip) out.hipY = kp.leftHip.y; else if(kp.rightHip) out.hipY = kp.rightHip.y;
+
+    // knee valgus check — only meaningful mid-squat, so callers should read this
+    // alongside kneeL/kneeR rather than in the standing phase
+    if(kp.leftHip && kp.leftKnee && kp.leftAnkle){
+      const legLen = Math.hypot(kp.leftHip.x-kp.leftAnkle.x, kp.leftHip.y-kp.leftAnkle.y, (kp.leftHip.z||0)-(kp.leftAnkle.z||0));
+      out.valgusL = kneeValgusOffset(kp.leftHip, kp.leftKnee, kp.leftAnkle, legLen);
+    }
+    if(kp.rightHip && kp.rightKnee && kp.rightAnkle){
+      const legLen = Math.hypot(kp.rightHip.x-kp.rightAnkle.x, kp.rightHip.y-kp.rightAnkle.y, (kp.rightHip.z||0)-(kp.rightAnkle.z||0));
+      out.valgusR = kneeValgusOffset(kp.rightHip, kp.rightKnee, kp.rightAnkle, legLen);
+    }
+    return out;
+  }
+
+  function drawSkeleton(kp, matchColor){
+    const w = state.videoCanvas.width, h = state.videoCanvas.height;
+    vctx.save();
+    vctx.translate(w,0); vctx.scale(-1,1); // mirror to match user's movement intuitively
+    vctx.drawImage(state.video, 0,0,w,h);
+    if(kp){
+      const color = matchColor || '#ffdd57';
+      vctx.strokeStyle = color; vctx.lineWidth=4; vctx.lineCap='round';
+      const pairs = [
+        ['leftShoulder','rightShoulder'],['leftShoulder','leftElbow'],['leftElbow','leftWrist'],
+        ['rightShoulder','rightElbow'],['rightElbow','rightWrist'],
+        ['leftShoulder','leftHip'],['rightShoulder','rightHip'],['leftHip','rightHip'],
+        ['leftHip','leftKnee'],['leftKnee','leftAnkle'],
+        ['rightHip','rightKnee'],['rightKnee','rightAnkle'],
+      ];
+      pairs.forEach(([a,b])=>{
+        if(kp[a] && kp[b]){
+          vctx.beginPath(); vctx.moveTo(kp[a].x,kp[a].y); vctx.lineTo(kp[b].x,kp[b].y); vctx.stroke();
+        }
+      });
+      vctx.fillStyle = color;
+      Object.values(kp).forEach(p=>{
+        vctx.beginPath(); vctx.arc(p.x,p.y,5,0,Math.PI*2); vctx.fill();
+      });
+    }
+    vctx.restore();
+  }
+
+  /* ---------------------------------------------------------------------
+     5. MINI-GAME LOGIC
+  --------------------------------------------------------------------- */
+  // shared helpers for scoring
+  function pushHistory(arr, val, maxLen){
+    arr.push(val); if(arr.length>maxLen) arr.shift();
+  }
+  function stddev(arr){
+    if(arr.length<2) return 0;
+    const m = arr.reduce((a,b)=>a+b,0)/arr.length;
+    const v = arr.reduce((a,b)=>a+(b-m)*(b-m),0)/arr.length;
+    return Math.sqrt(v);
+  }
+  function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+  const games = {};
+
+  // --- Plant Seeds: squat repetitions ---
+  games.seeds = {
+    label: 'Plant Seeds',
+    countLabel: 'Seeds Planted',
+    phase: 'up',
+    minAngleThisRep: 180,
+    maxValgusThisRep: 0,
+    init(){ this.phase='up'; this.minAngleThisRep=180; this.maxValgusThisRep=0; state.metrics.count=0; state.valgusWarning=false; },
+    prompt(){
+      if(state.valgusWarning) return '⚠️ Knees are drifting inward — track them over your toes';
+      return this.phase==='down' ? 'Now stand back up 🌱' : 'Squat down to plant a seed';
+    },
+    update(angles){
+      if(!angles || (angles.kneeL==null && angles.kneeR==null)) return;
+      const knee = avgDefined(angles.kneeL, angles.kneeR);
+      if(knee==null) return;
+      pushHistory(state.angleHistory, knee, 30);
+      avatarPose.squat = clamp((170-knee)/70, 0, 1);
+      avatarPose.legLift = 0;
+
+      // VALGUS_THRESHOLD is a starting heuristic, not a clinically validated cutoff —
+      // it would need calibration against goniometry/motion-capture before clinical use
+      const VALGUS_THRESHOLD = 0.12;
+      const valgus = Math.max(angles.valgusL||0, angles.valgusR||0);
+
+      if(this.phase==='up' && knee < 110){
+        this.phase='down'; this.minAngleThisRep = knee; this.maxValgusThisRep = valgus;
+      } else if(this.phase==='down'){
+        this.minAngleThisRep = Math.min(this.minAngleThisRep, knee);
+        this.maxValgusThisRep = Math.max(this.maxValgusThisRep, valgus);
+        state.valgusWarning = this.maxValgusThisRep > VALGUS_THRESHOLD;
+        if(knee > 155){
+          this.phase='up';
+          state.metrics.count++;
+          const depthScore = clamp(100 - Math.abs(90-this.minAngleThisRep)*1.2, 30, 100);
+          const valgusPenalty = this.maxValgusThisRep > VALGUS_THRESHOLD ? 15 : 0;
+          state.metrics.accuracy = Math.round(clamp(depthScore - valgusPenalty, 0, 100));
+          avatarPose.glow = 1;
+          addEnergy(6 * (depthScore/100));
+        }
+      }
+      state.metrics.smooth = Math.round(clamp(100 - stddev(state.angleHistory)*3, 0, 100));
+      state.metrics.balance = computeBalanceScore(angles);
+    }
+  };
+
+  // --- Weed-style variant reused as Water the Plants: alternating side steps ---
+  games.water = {
+    label: 'Water the Plants',
+    countLabel: 'Plants Watered',
+    baseline: null,
+    lastSide: 0,
+    init(){ this.baseline=null; this.lastSide=0; state.metrics.count=0; },
+    prompt(){ return 'Step side to side to water each plant 💧'; },
+    update(angles){
+      if(!angles || angles.hipCenterX==null || angles.shoulderWidth==null) return;
+      if(this.baseline==null) this.baseline = angles.hipCenterX;
+      const norm = (angles.hipCenterX - this.baseline) / (angles.shoulderWidth||1);
+      pushHistory(state.hipXHistory, norm, 30);
+      avatarPose.step = clamp(-norm, -1, 1); // mirror sense
+      avatarPose.squat = 0; avatarPose.legLift = 0;
+
+      const THRESH = 0.55;
+      if(norm > THRESH && this.lastSide !== 1){
+        this.lastSide = 1; registerWaterHit();
+      } else if(norm < -THRESH && this.lastSide !== -1){
+        this.lastSide = -1; registerWaterHit();
+      } else if(Math.abs(norm) < 0.2){
+        this.lastSide = 0;
+      }
+      state.metrics.smooth = Math.round(clamp(100 - stddev(state.hipXHistory)*80, 0, 100));
+      state.metrics.balance = computeBalanceScore(angles);
+      state.metrics.accuracy = Math.round(clamp(60 + Math.abs(norm)*60, 0, 100));
+    }
+  };
+  function registerWaterHit(){
+    state.metrics.count++;
+    avatarPose.glow = 1;
+    addEnergy(5);
+  }
+
+  // --- Scarecrow Balance: single-leg hold ---
+  games.balance = {
+    label: 'Scarecrow Balance',
+    countLabel: 'Seconds Held',
+    holding: false,
+    holdStart: 0,
+    side: 0,
+    init(){ this.holding=false; state.metrics.count=0; },
+    prompt(){
+      return this.holding
+        ? `Hold steady... ${Math.max(0,(state.holdTarget-(performance.now()-this.holdStart)/1000)).toFixed(1)}s to go`
+        : `Lift one foot and hold for ${state.holdTarget}s`;
+    },
+    update(angles){
+      if(!angles || angles.ankleLY==null || angles.ankleRY==null || angles.shoulderWidth==null) return;
+      const diff = (angles.ankleLY - angles.ankleRY) / (angles.shoulderWidth||1);
+      const LIFT_THRESH = 0.5;
+      const lifted = Math.abs(diff) > LIFT_THRESH;
+      avatarPose.legLift = lifted ? clamp(Math.abs(diff),0,1) : 0;
+      avatarPose.legSide = diff>0 ? -1 : 1;
+      avatarPose.squat = 0; avatarPose.step = 0;
+
+      if(lifted && !this.holding){ this.holding=true; this.holdStart=performance.now(); }
+      if(!lifted && this.holding){
+        this.holding=false;
+        state.metrics.accuracy = 0;
+      }
+      if(this.holding){
+        const heldSec = (performance.now()-this.holdStart)/1000;
+        state.metrics.count = Math.round(heldSec*10)/10;
+        state.metrics.accuracy = Math.round(clamp(heldSec/state.holdTarget*100, 0, 100));
+        if(heldSec >= state.holdTarget){
+          avatarPose.glow = 1;
+          addEnergy(12);
+          this.holding=false;
+        }
+      }
+      pushHistory(state.hipXHistory, angles.hipCenterX||0, 30);
+      state.metrics.balance = computeBalanceScore(angles);
+      state.metrics.smooth = state.metrics.balance;
+    }
+  };
+
+  // --- Flower Dance: chained sequence combining the above primitives ---
+  games.dance = {
+    label: 'Flower Dance',
+    countLabel: 'Sequence Step',
+    sequence: ['squat','stand','stepLeft','stepRight','balance'],
+    idx: 0,
+    baseline: null,
+    init(){ this.idx=0; this.baseline=null; state.metrics.count=0; },
+    prompt(){
+      const step = this.sequence[this.idx];
+      const labels = { squat:'Squat down 🌸', stand:'Stand back up', stepLeft:'Step left',
+                        stepRight:'Step right', balance:`Balance for ${Math.min(5,state.holdTarget)}s` };
+      return `Step ${this.idx+1}/${this.sequence.length}: ${labels[step]}`;
+    },
+    update(angles){
+      if(!angles) return;
+      if(this.baseline==null && angles.hipCenterX!=null) this.baseline = angles.hipCenterX;
+      const knee = avgDefined(angles.kneeL, angles.kneeR);
+      if(knee!=null) avatarPose.squat = clamp((170-knee)/70,0,1);
+      if(angles.hipCenterX!=null && angles.shoulderWidth){
+        avatarPose.step = clamp(-(angles.hipCenterX-this.baseline)/(angles.shoulderWidth||1), -1, 1);
+      }
+
+      const step = this.sequence[this.idx];
+      let advanced = false;
+      if(step==='squat' && knee!=null && knee<110) advanced=true;
+      if(step==='stand' && knee!=null && knee>155) advanced=true;
+      if(step==='stepLeft' && angles.hipCenterX!=null && angles.shoulderWidth){
+        const norm=(angles.hipCenterX-this.baseline)/angles.shoulderWidth;
+        if(norm < -0.5) advanced=true;
+      }
+      if(step==='stepRight' && angles.hipCenterX!=null && angles.shoulderWidth){
+        const norm=(angles.hipCenterX-this.baseline)/angles.shoulderWidth;
+        if(norm > 0.5) advanced=true;
+      }
+      if(step==='balance' && angles.ankleLY!=null && angles.ankleRY!=null && angles.shoulderWidth){
+        const diff=(angles.ankleLY-angles.ankleRY)/angles.shoulderWidth;
+        if(!this._holdStart && Math.abs(diff)>0.5) this._holdStart = performance.now();
+        if(this._holdStart && Math.abs(diff)>0.5 && (performance.now()-this._holdStart)/1000 > Math.min(5,state.holdTarget)) advanced=true;
+        if(Math.abs(diff)<=0.5) this._holdStart=null;
+        avatarPose.legLift = Math.abs(diff)>0.5 ? clamp(Math.abs(diff),0,1) : 0;
+      }
+
+      if(advanced){
+        this.idx++;
+        state.metrics.count = this.idx;
+        avatarPose.glow = 1;
+        addEnergy(8);
+        this._holdStart = null;
+        if(this.idx >= this.sequence.length){
+          this.idx = 0;
+          addEnergy(20); // sequence completion bonus
+        }
+      }
+      state.metrics.accuracy = Math.round((this.idx/this.sequence.length)*100);
+      state.metrics.balance = computeBalanceScore(angles);
+      state.metrics.smooth = state.metrics.balance;
+    }
+  };
+
+  function avgDefined(a,b){
+    if(a!=null && b!=null) return (a+b)/2;
+    if(a!=null) return a;
+    if(b!=null) return b;
+    return null;
+  }
+  function computeBalanceScore(angles){
+    if(!angles || angles.hipCenterX==null || !angles.shoulderWidth) return state.metrics.balance||0;
+    pushHistory(state.hipXHistory, angles.hipCenterX/angles.shoulderWidth, 40);
+    return Math.round(clamp(100 - stddev(state.hipXHistory)*250, 0, 100));
+  }
+
+  /* ---------------------------------------------------------------------
+     6. GAME LOOP / UI WIRING
+  --------------------------------------------------------------------- */
+  function updateHUD(){
+    document.getElementById('valAccuracy').textContent = state.metrics.accuracy ? state.metrics.accuracy+'%' : '–';
+    document.getElementById('valBalance').textContent = state.metrics.balance ? state.metrics.balance+'%' : '–';
+    document.getElementById('valSmooth').textContent = state.metrics.smooth ? state.metrics.smooth+'%' : '–';
+    document.getElementById('valCount').textContent = state.metrics.count;
+    if(state.currentGame) document.getElementById('valCountLbl').textContent = games[state.currentGame].countLabel;
+  }
+
+  async function detectLoop(){
+    if(!state.running) return;
+    try{
+      const result = await state.human.detect(state.video);
+      const kp = getKP(result);
+      const angles = computeSkeletonAngles(kp);
+      if(state.currentGame && angles){
+        games[state.currentGame].update(angles);
+      }
+      const matchColor = !kp ? null
+        : !state.currentGame ? '#ffdd57'
+        : (state.metrics.accuracy >= 70 ? '#7CFC00' : '#4da6ff');
+      drawSkeleton(kp, matchColor);
+      if(!kp){
+        setPrompt('Step back so your full body is visible 🧍');
+      } else if(state.currentGame){
+        setPrompt(games[state.currentGame].prompt());
+      } else {
+        setPrompt('Choose a mini-game below to begin');
+      }
+      updateHUD();
+    }catch(e){
+      console.error(e);
+    }
+    requestAnimationFrame(detectLoop);
+  }
+
+  async function startCamera(){
+    const btn = document.getElementById('btnCamera');
+    btn.disabled = true;
+    setStatus('Requesting camera access...');
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:480, height:360 }, audio:false });
+      state.video.srcObject = stream;
+      await state.video.play();
+      state.videoCanvas.width = state.video.videoWidth || 480;
+      state.videoCanvas.height = state.video.videoHeight || 360;
+
+      setStatus('Loading pose model (first load may take a moment)...');
+      state.human = new Human.Human(humanConfig);
+      await state.human.load();
+      await state.human.warmup();
+
+      setStatus('');
+      state.running = true;
+      btn.textContent = 'Camera Running';
+      setPrompt('Choose a mini-game below to begin');
+      detectLoop();
+    }catch(err){
+      console.error(err);
+      setStatus('Could not start camera or load the pose model. Check camera permissions and try again.');
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById('btnCamera').addEventListener('click', startCamera);
+
+  document.querySelectorAll('button[data-game]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('button[data-game]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const key = btn.getAttribute('data-game');
+      state.currentGame = key;
+      games[key].init();
+      state.angleHistory = []; state.hipXHistory = [];
+      document.getElementById('difficultyRow').style.display = key==='balance' ? 'flex' : 'none';
+      if(!state.running) setPrompt('Start the camera to play '+games[key].label);
+    });
+  });
+
+  document.querySelectorAll('#difficultyRow button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#difficultyRow button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      state.holdTarget = parseInt(btn.getAttribute('data-hold'),10);
+    });
+  });
+
+  loadGarden();
+})();
+</script>
+</body>
+</html>
