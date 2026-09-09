@@ -1,4 +1,4 @@
-# Leg-Rehabilitation-Web-App
+# Lower body Rehabilitation-Web-App
 # 🌱 Mirror Garden
 
 **A browser-based physical rehabilitation game that uses real-time pose detection to turn body movements into a magical, growing garden.**
